@@ -2,15 +2,12 @@ name: Pre-Code Review
 
 on:
   pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
+    types: [opened, synchronize]
+  workflow_dispatch:
 
 jobs:
   unit-tests:
-    name: Unit Tests
+    name: Unit Tests and typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -26,26 +23,9 @@ jobs:
 
       - name: Run unit tests
         run: pytest tests/
-
-  type-check:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install mypy types-all
-
-      - name: Run mypy
-        run: mypy app tests
+      
+      - name: Type checks
+        run: mypy .
 
   lint:
     name: Lint
