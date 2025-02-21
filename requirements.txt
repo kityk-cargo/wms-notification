@@ -1,0 +1,9 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+python-dotenv==1.0.1
+pytest==8.0.1
+pytest-asyncio==0.23.5
+httpx==0.23.1
+pact-python==1.7.0 
