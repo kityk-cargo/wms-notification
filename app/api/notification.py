@@ -1,9 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import List
 import logging
-from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
