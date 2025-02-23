@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List
 import logging
@@ -7,6 +8,9 @@ from datetime import datetime
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Test-only global variable - NEVER USE IN PRODUCTION
+__mock_simulate_exception_never_define_in_prod = False
+
 
 class StrictBaseModel(BaseModel):
     class Config:
@@ -14,15 +18,13 @@ class StrictBaseModel(BaseModel):
 
 
 class NotificationRequest(StrictBaseModel):
-    level: str = Field(
-        examples=["Warning"], description="Level of the notification"
-    )
+    level: str = Field(examples=["Warning"], description="Level of the notification")
     category: str = Field(
         examples=["stock alerts"], description="Category of the notification"
     )
     title: str = Field(
-        examples=["Low stock alert for product 1"], 
-        description="Title of the notification"
+        examples=["Low stock alert for product 1"],
+        description="Title of the notification",
     )
     message: str = Field(
         examples=["Stock level is 15. Consider restocking."],
@@ -32,20 +34,19 @@ class NotificationRequest(StrictBaseModel):
 
 class NotificationResponse(StrictBaseModel):
     status: str = Field(examples=["success", "error"])
-    message: str = Field(examples=["Alert sent successfully", "Failed to deliver notification"])
+    message: str = Field(
+        examples=["Alert sent successfully", "Failed to deliver notification"]
+    )
     details: str | None = Field(default=None, examples=["Connection error"])
 
 
 # Example notification objects for API documentation
 example_notification = NotificationResponse(
-    status="success",
-    message="Alert sent successfully"
+    status="success", message="Alert sent successfully"
 )
 
 example_notification_alt = NotificationResponse(
-    status="error",
-    message="Failed to deliver notification",
-    details="Connection error"
+    status="error", message="Failed to deliver notification", details="Connection error"
 )
 
 
@@ -56,7 +57,10 @@ example_notification_alt = NotificationResponse(
         200: {
             "content": {
                 "application/json": {
-                    "example": {"status": "success", "message": "Alert sent successfully"}
+                    "example": {
+                        "status": "success",
+                        "message": "Alert sent successfully",
+                    }
                 }
             }
         },
@@ -64,9 +68,9 @@ example_notification_alt = NotificationResponse(
             "content": {
                 "application/json": {
                     "example": {
-                        "status": "error", 
+                        "status": "error",
                         "message": "Failed to deliver notification",
-                        "details": "Connection error"
+                        "details": "Connection error",
                     }
                 }
             }
@@ -83,18 +87,23 @@ async def create_notification(
     try:
         # Mock implementation - just logging the notification
         logger.info(f"Received notification: {notification.model_dump()}")
+        print(f"Received notification: {notification.model_dump()}")
+        # Check test mock flag and throw exception if set
+        if __mock_simulate_exception_never_define_in_prod:
+            logger.info("Simulating failure due to test mock flag")
+            print("Simulating failure due to test mock flag")
+            raise Exception("Simulated failure for testing")
 
         # Return success response with correct content type
-        return NotificationResponse(
-            status="success",
-            message="Alert sent successfully"
-        )
+        return NotificationResponse(status="success", message="Alert sent successfully")
 
     except Exception as e:
         # Log and return error response
         logger.error(f"Failed to process notification: {str(e)}")
-        return NotificationResponse(
-            status="error",
-            message="Failed to deliver notification",
-            details="Connection error"
+        print(f"Failed to process notification: {e}")
+        return JSONResponse(
+            status_code=500,
+            content=NotificationResponse(
+                status="error", message="Failed to deliver notification", details=str(e)
+            ).dict(),
         )
