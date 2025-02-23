@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import List
 import logging
-from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Test-only global variable - NEVER USE IN PRODUCTION
+__mock_simulate_exception_never_define_in_prod = False
 
 
 class StrictBaseModel(BaseModel):
@@ -14,92 +16,92 @@ class StrictBaseModel(BaseModel):
 
 
 class NotificationRequest(StrictBaseModel):
-    alert_type: str = Field(
-        examples=["LOW_STOCK"], description="Type of alert being sent"
+    level: str = Field(examples=["Warning"], description="Level of the notification")
+    category: str = Field(
+        examples=["stock alerts"], description="Category of the notification"
+    )
+    title: str = Field(
+        examples=["Low stock alert for product 1"],
+        description="Title of the notification",
     )
     message: str = Field(
-        examples=["Product SKU-123 is running low on stock"],
+        examples=["Stock level is 15. Consider restocking."],
         description="Detailed notification message",
-    )
-    severity: str = Field(
-        examples=["HIGH"], description="Severity level of the notification"
-    )
-    inventory_ids: List[str] = Field(
-        examples=[["INV-001", "INV-002"]], description="List of related inventory IDs"
     )
 
 
 class NotificationResponse(StrictBaseModel):
-    id: int = Field(examples=[1])
-    alert_type: str = Field(examples=["LOW_STOCK"])
-    message: str = Field(examples=["Product SKU-123 is running low on stock"])
-    severity: str = Field(examples=["HIGH"])
-    inventory_ids: List[str] = Field(examples=[["INV-001", "INV-002"]])
-    created_at: datetime = Field(examples=[datetime(2023, 1, 1, 0, 0, 0)])
-
-    class Config:
-        from_attributes = True  # Updated from orm_mode
+    status: str = Field(examples=["success", "error"])
+    message: str = Field(
+        examples=["Alert sent successfully", "Failed to deliver notification"]
+    )
+    details: str | None = Field(default=None, examples=["Connection error"])
 
 
 # Example notification objects for API documentation
 example_notification = NotificationResponse(
-    id=1,
-    alert_type="LOW_STOCK",
-    message="Product SKU-123 is running low on stock",
-    severity="HIGH",
-    inventory_ids=["INV-001", "INV-002"],
-    created_at=datetime(2023, 6, 1, 8, 0, 0),
+    status="success", message="Alert sent successfully"
 )
 
 example_notification_alt = NotificationResponse(
-    id=2,
-    alert_type="STOCK_MOVEMENT",
-    message="Stock transferred from location A to B",
-    severity="MEDIUM",
-    inventory_ids=["INV-003"],
-    created_at=datetime(2023, 6, 1, 9, 0, 0),
+    status="error", message="Failed to deliver notification", details="Connection error"
 )
 
 
 @router.post(
-    "/notifications/",  # Added trailing slash to match test
+    "/notifications",
     response_model=NotificationResponse,
     responses={
         200: {
             "content": {
                 "application/json": {
-                    "example": example_notification.model_dump()  # Updated from dict()
+                    "example": {
+                        "status": "success",
+                        "message": "Alert sent successfully",
+                    }
                 }
             }
         },
-        400: {"description": "Invalid notification data"},
+        500: {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "error",
+                        "message": "Failed to deliver notification",
+                        "details": "Connection error",
+                    }
+                }
+            }
+        },
     },
 )
-async def create_notification(notification: NotificationRequest):
+async def create_notification(
+    notification: NotificationRequest,
+    response_model_exclude_none: bool = True,
+):
     """
     Create a new notification
     """
-    # Validate severity
-    valid_severities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    if notification.severity.upper() not in valid_severities:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid severity. Must be one of: {', '.join(valid_severities)}",
+    try:
+        # Mock implementation - just logging the notification
+        logger.info(f"Received notification: {notification.model_dump()}")
+        print(f"Received notification: {notification.model_dump()}")
+        # Check test mock flag and throw exception if set
+        if __mock_simulate_exception_never_define_in_prod:
+            logger.info("Simulating failure due to test mock flag")
+            print("Simulating failure due to test mock flag")
+            raise Exception("Simulated failure for testing")
+
+        # Return success response with correct content type
+        return NotificationResponse(status="success", message="Alert sent successfully")
+
+    except Exception as e:
+        # Log and return error response
+        logger.error(f"Failed to process notification: {str(e)}")
+        print(f"Failed to process notification: {e}")
+        return JSONResponse(
+            status_code=500,
+            content=NotificationResponse(
+                status="error", message="Failed to deliver notification", details=str(e)
+            ).dict(),
         )
-
-    # Mock implementation - just logging the notification
-    logger.info(
-        f"Received notification: {notification.model_dump()}"
-    )  # Updated from dict()
-
-    # Mock response - in real implementation, this would come from the database
-    response = NotificationResponse(
-        id=1,  # This would normally be generated by the database
-        alert_type=notification.alert_type,
-        message=notification.message,
-        severity=notification.severity,
-        inventory_ids=notification.inventory_ids,
-        created_at=datetime.utcnow(),
-    )
-
-    return response
