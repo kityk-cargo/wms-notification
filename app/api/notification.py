@@ -83,22 +83,15 @@ async def create_notification(
     Create a new notification
     """
     try:
-        # Mock implementation - just logging the notification
-        logger.info(f"Received notification: {notification.model_dump()}")
-        print(f"Received notification: {notification.model_dump()}")
-        # Check test mock flag and throw exception if set
+        logger.info("Received notification: %s", notification.model_dump())
         if __mock_simulate_exception_never_define_in_prod:
             logger.info("Simulating failure due to test mock flag")
-            print("Simulating failure due to test mock flag")
             raise Exception("Simulated failure for testing")
 
-        # Return success response with correct content type
         return NotificationResponse(status="success", message="Alert sent successfully")
 
     except Exception as e:
-        # Log and return error response
-        logger.error(f"Failed to process notification: {str(e)}")
-        print(f"Failed to process notification: {e}")
+        logger.error("Failed to process notification: %s", e)
         return JSONResponse(
             status_code=500,
             content=NotificationResponse(

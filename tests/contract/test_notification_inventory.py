@@ -23,25 +23,17 @@ provider_state_router = APIRouter()
 @provider_state_router.post("/_pact/provider_states/")
 async def provider_states(request_body: dict):
     """
-    Endpoint to handle provider state setup for Pact testing.
-    This endpoint should only be available during testing.
+    Handle provider state setup for Pact testing.
     """
     state = request_body.get("state")
     params = request_body.get("params", {})
-
-    print(f"Setting up provider state {request_body}: {state} with params: {params}")
-
+    logger.info("Setting up provider state: %s with params: %s", state, params)
     if state == "Notification service is experiencing a failure":
-        print("Setting up provider state FAIL")
-        notification_module.__mock_simulate_exception_never_define_in_prod = (
-            True  # simulate failure
-        )
+        logger.info("Provider state FAIL: simulating failure")
+        notification_module.__mock_simulate_exception_never_define_in_prod = True
     elif state == "Notification service is configured for success":
-        print("Setting up provider state SUCCESS")
-        notification_module.__mock_simulate_exception_never_define_in_prod = (
-            None  # type: ignore
-        )
-
+        logger.info("Provider state SUCCESS: simulating success")
+        notification_module.__mock_simulate_exception_never_define_in_prod = None  # type: ignore
     return {"status": "success"}
 
 
@@ -51,6 +43,19 @@ app.include_router(provider_state_router)
 
 class ProviderTest(unittest.TestCase):
     @classmethod
+    def wait_for_server(cls, host: str, port: int, timeout: int = 10) -> None:
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                resp = requests.get(f"http://{host}:{port}/")
+                if resp.status_code < 500:
+                    return
+            except Exception:
+                pass
+            time.sleep(0.2)
+        raise RuntimeError("Uvicorn server did not start in time")
+
+    @classmethod
     def setUpClass(cls):
         logger.info("Starting uvicorn server in background...")
         cls.host = "127.0.0.1"
@@ -59,40 +64,20 @@ class ProviderTest(unittest.TestCase):
         cls.server = uvicorn.Server(config)
         cls.server_thread = threading.Thread(target=cls.server.run, daemon=True)
         cls.server_thread.start()
-
-        # Wait until the server is ready by polling its root endpoint
-        timeout = 10  # seconds
-        start_time = time.time()
-        server_up = False
-        while time.time() - start_time < timeout:
-            try:
-                resp = requests.get(f"http://{cls.host}:{cls.port}/")
-                if resp.status_code < 500:
-                    server_up = True
-                    break
-            except Exception:
-                pass
-            time.sleep(0.2)
-        if not server_up:
-            raise RuntimeError("Uvicorn server did not start in time")
+        cls.wait_for_server(cls.host, cls.port)
         logger.info("Uvicorn server is up and running")
 
     def test_provider(self):
+        """Pact verification test for the Notification provider."""
         logger.info("Starting Pact verification test...")
-
-        # Get pact file path
         default_pact_path = (
             "../wms-contracts/pact/rest/wms_notification/wms_inventory_management.json"
         )
         pact_file = os.getenv("PACT_FILE_PATH", default_pact_path)
-        logger.info(f"Using Pact file: {pact_file}")
-
-        # Check if pact file exists
+        logger.info("Using Pact file: %s", pact_file)
         if not os.path.exists(pact_file):
-            logger.error(f"Pact file not found at path: {pact_file}")
+            logger.error("Pact file not found at path: %s", pact_file)
             raise FileNotFoundError(f"Pact file not found: {pact_file}")
-
-        verifier_output = ""
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             verifier = Verifier(
                 provider="WMSNotificationService",
@@ -112,12 +97,12 @@ class ProviderTest(unittest.TestCase):
                 provider_states_setup_url=f"http://{self.__class__.host}:{self.__class__.port}/_pact/provider_states/",
             )
             verifier_output = buf.getvalue()
-        print(f"output: {output}")
-        if output[0] != 0:  # that's pact, that's not me
-            logger.error(f"Pact verification failed: {verifier_output}")
+        logger.info("Pact verifier output: %s", verifier_output)
+        if output[0] != 0:
+            logger.error("Pact verification failed")
             self.fail(f"Pact verification failed: {verifier_output}")
         else:
-            logger.info("Pact verification passed successfully")
+            logger.info(f"Pact verification passed successfully: {verifier_output}")
 
     @classmethod
     def tearDownClass(cls):
