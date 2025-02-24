@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from app.api.notification import router as notification_router
+from app.core.logging_config import setup_logging  # NEW import
+
+setup_logging()  # Initialize logging for the whole project
 
 app = FastAPI(
     title="WMS Notification Service",
