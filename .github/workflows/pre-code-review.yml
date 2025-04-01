@@ -27,13 +27,13 @@ jobs:
           repository: kityk-cargo/wms-contracts
           path: wms-contracts
 
-      - name: Set environment variable for Pact file
-        run: echo "PACT_FILE_PATH=$(pwd)/wms-contracts/pact/rest/wms_notification/wms_inventory_management.json" >> $GITHUB_ENV
+      - name: Set environment variable for Pact directory
+        run: echo "PACT_DIR_PATH=$(pwd)/wms-contracts/pact/rest/wms_notification" >> $GITHUB_ENV
 
       - name: Run unit tests
         run: pytest tests/
         env:
-          PACT_FILE_PATH: ${{ env.PACT_FILE_PATH }}
+          PACT_DIR_PATH: ${{ env.PACT_DIR_PATH }}
       
       - name: Type checks
         run: mypy .
